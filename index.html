@@ -63,7 +63,9 @@ const SHELVES=[['تراث عربي (ويكي مصدر)','Arabic classics',()=>SR
 ['كتب أجنبية','Foreign books',()=>SRC.gut({languages:'fr,de,es,it'})]];
 /* ===== Views ===== */
 const hue=t=>[...String(t)].reduce((a,c)=>(a*31+c.charCodeAt(0))%360,7);
-const cover=b=>`<div class="cv" style="background:linear-gradient(135deg,hsl(${hue(b.title)} 45% 32%),hsl(${(hue(b.title)+50)%360} 50% 17%))">${esc(b.title).slice(0,40)}${b.cover?`<img loading=lazy src="${esc(b.cover)}" alt="" onerror="this.remove()">`:''}</div>`;
+const SV={ar:`<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><path d='M32 4l6 14 14-6-6 14 14 6-14 6 6 14-14-6-6 14-6-14-14 6 6-14-14-6 14-6-6-14 14 6z' fill='none' stroke='white' stroke-opacity='.2' stroke-width='1.5'/></svg>`,au:`<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><g fill='none' stroke='white' stroke-opacity='.2' stroke-width='2'><circle cx='40' cy='40' r='12'/><circle cx='40' cy='40' r='24'/><circle cx='40' cy='40' r='36'/></g></svg>`,bk:`<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 40L40 0M-10 10L10 -10M30 50L50 30' stroke='white' stroke-opacity='.15' stroke-width='3'/></svg>`};
+const cover=b=>{const h=hue(b.title),k=b.type==='audio'?'au':/[\u0600-\u06FF]/.test(b.title)||/^ar/i.test(b.lang||'')?'ar':'bk';
+ return `<div class="cv" style="background-image:url(data:image/svg+xml;base64,${btoa(SV[k])}),linear-gradient(135deg,hsl(${h} 45% 32%),hsl(${(h+50)%360} 50% 17%));box-shadow:inset 0 0 0 3px #f5b94266"><span style="position:relative;font-size:13px;line-height:1.4;text-shadow:0 1px 4px #000a;color:#fff">${esc(b.title).slice(0,48)}</span>${b.cover?`<img loading=lazy src="${esc(b.cover)}" alt="" onerror="this.remove()">`:''}</div>`};
 const card=b=>(reg(b),`<div class="card" onclick="location.hash='#/book/${b.id}'">${cover(b)}<div class="t">${esc(b.title)}</div><small>${esc(b.author)}</small><span class="tag">${b.type==='audio'?'🎧':'📖'}</span></div>`);
 const view=h=>{$('#v').innerHTML=h;scrollTo(0,0)};
 const setUser=()=>{const v=$('#un').value.trim();if(v){S.user=v;save();home()}};
@@ -128,8 +130,13 @@ if('mediaSession'in navigator){const m=navigator.mediaSession;m.setActionHandler
 
 /* ===== Read aloud (device TTS) ===== */
 let tq=[],ti=0,tp=false;
+const avoices=()=>(window.speechSynthesis?speechSynthesis.getVoices():[]).filter(v=>/^ar/i.test(v.lang));
+const pickV=()=>{const l=avoices();return l.find(v=>v.name===S.set.voice)||l.find(v=>/google|neural|natural/i.test(v.name)&&/EG|SA/i.test(v.lang))||l.find(v=>/google|neural|natural/i.test(v.name))||l.find(v=>/EG/i.test(v.lang))||l[0]};
+const vopts=()=>{const c=pickV();return avoices().map(v=>`<option value="${esc(v.name)}" ${c&&c.name===v.name?'selected':''}>${esc(v.name)} (${v.lang})</option>`).join('')};
+const setV=v=>{S.set.voice=v;save()},testV=()=>{tts('stop');tq=['\u0628\u0633\u0645 \u0627\u0644\u0644\u0647 \u0627\u0644\u0631\u062d\u0645\u0646 \u0627\u0644\u0631\u062d\u064a\u0645\u060c \u0645\u0631\u062d\u0628\u0627 \u0628\u0643 \u0641\u064a \u062a\u064a\u062a\u0648 \u0628\u0648\u0643\u0633.'];ti=0;say()};
+if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>{};
 const tbtn=v=>{const e=$('#tb');if(e)e.textContent=v};
-function say(){if(ti>=tq.length){tq=[];tbtn('\ud83d\udd0a');return}const u=new SpeechSynthesisUtterance(tq[ti]);u.lang=/[\u0600-\u06FF]/.test(tq[ti])?'ar-SA':'en-US';u.rate=S.set.speed;
+function say(){if(ti>=tq.length){tq=[];tbtn('\ud83d\udd0a');return}const u=new SpeechSynthesisUtterance(tq[ti]);const isA=/[\u0600-\u06FF]/.test(tq[ti]);u.lang=isA?'ar-SA':'en-US';if(isA){const v=pickV();if(v){u.voice=v;u.lang=v.lang}}u.rate=S.set.speed;
  u.onend=()=>{if(!tp){ti++;say()}};u.onerror=e=>{if(e.error!=='canceled'&&e.error!=='interrupted'){tq=[];tbtn('\ud83d\udd0a');alert(T('الجهاز لا يدعم صوتًا لهذه اللغة. ثبّت صوتًا من إعدادات الجهاز ← اللغة ← تحويل النص إلى كلام.','No voice for this language. Install one in device Text-to-speech settings.'))}};speechSynthesis.speak(u);tbtn('\u23f8')}
 function tts(a){if(!window.speechSynthesis){if(a!=='stop')alert(T('المتصفح لا يدعم القراءة الصوتية','Read-aloud not supported'));return}
  if(a==='stop'){tq=[];tp=false;speechSynthesis.cancel();tbtn('\ud83d\udd0a');return}
@@ -145,6 +152,7 @@ const openLocal=async id=>{const b=S.lib[id];const u=URL.createObjectURL(await f
 async function sets(){const e=navigator.storage?.estimate?await navigator.storage.estimate():{};view(`<h2>${T('الإعدادات','Settings')}</h2><div class="sp"><label>${T('اللغة','Language')}</label><select onchange="cfg('lang',this.value)"><option value="ar" ${ar()?'selected':''}>العربية</option><option value="en" ${ar()?'':'selected'}>English</option></select>
 <label>${T('المظهر','Theme')}</label><select onchange="cfg('theme',this.value)"><option value="dark">${T('داكن','Dark')}</option><option value="light" ${S.set.theme=='light'?'selected':''}>${T('فاتح','Light')}</option></select></div>
 <div class="sp"><label>${T('حجم الخط','Font')}</label><input type="number" min=12 max=44 value="${S.set.font}" onchange="cfg('font',+this.value)"><label>${T('سرعة الاستماع','Speed')}</label><input type="number" step=.25 min=.5 max=3 value="${S.set.speed}" onchange="cfg('speed',+this.value)"></div>
+<div class="sp"><label>${T('صوت القراءة العربي','Arabic voice')}</label><select onchange="setV(this.value)">${vopts()||'<option>'+T('لا يوجد صوت عربي على الجهاز','No Arabic voice found')+'</option>'}</select><button onclick="testV()">${T('جرّب الصوت','Test')}</button></div><small>${T('للحصول على صوت أوضح: إعدادات الموبايل ← اللغة ← تحويل النص إلى كلام ← Google ← ثبّت الصوت العربي.','For a clearer voice: phone Settings → Text-to-speech → Google → install Arabic voice.')}</small>
 <p>${T('المساحة المستخدمة','Storage used')}: ${((e.usage||0)/1048576).toFixed(1)} MB</p><div class="sp"><button onclick="clr()">${T('مسح سجل القراءة والاستماع','Clear history')}</button><button onclick="wipe()">${T('حذف كل الملفات المنزّلة','Delete all downloads')}</button></div>
 <h2>${T('عن التطبيق','About')}</h2><p><b>TETOO BOOKS</b><br>${T('مكتبتك الشخصية للكتب الصوتية والإلكترونية.','Your personal library of audio & e-books.')}<br>Developed by TETOO</p>
 <p><small>${T('الخصوصية: كل بياناتك (المفضلة، التقدم، الملفات) محفوظة على جهازك فقط. نتصل فقط بـ Project Gutenberg (Gutendex) وLibriVox للبحث وجلب الكتب العامة، ولا نرسل لهما أي بيانات شخصية.','Privacy: all your data stays on your device. We only contact Gutendex/Project Gutenberg and LibriVox for public-domain catalogs; no personal data is sent.')}</small></p>`)}
