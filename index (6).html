@@ -1,0 +1,144 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TETOO BOOKS</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0f1115">
+<style>
+:root{--bg:#0f1115;--s:#1a1d24;--t:#eceef2;--m:#8d94a3;--a:#f5b942;--r:12px}
+[data-theme=light]{--bg:#f6f4ef;--s:#fff;--t:#1b1d22;--m:#6b7080}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--t);font:15px system-ui,"Segoe UI",Tahoma,sans-serif;padding-bottom:150px;-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}button{background:var(--s);border:0;border-radius:var(--r);padding:9px 14px;cursor:pointer}
+button.p{background:var(--a);color:#111;font-weight:700}input,select{background:var(--s);border:1px solid #ffffff18;border-radius:var(--r);padding:9px 12px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 14px;display:flex;gap:8px;align-items:center}
+header b{color:var(--a);letter-spacing:1px;white-space:nowrap}header input{flex:1;min-width:0}
+main{padding:6px 14px;max-width:1000px;margin:auto}h2{font-size:17px;margin:18px 0 8px}
+.row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.card{width:120px;flex:none;cursor:pointer}.grid .card{width:auto}.cv{aspect-ratio:2/3;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#3a2f5b,#1d4a5a);display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-weight:700;position:relative}
+.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.card small{color:var(--m);display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.card div.t{margin-top:5px;font-size:13px;line-height:1.3;max-height:2.6em;overflow:hidden}.tag{font-size:11px;background:var(--a);color:#111;border-radius:6px;padding:1px 6px}
+nav{position:fixed;bottom:0;inset-inline:0;background:var(--s);display:flex;justify-content:space-around;padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:9}
+nav a{color:var(--m);text-decoration:none;font-size:12px;text-align:center;padding:4px 12px}nav a.on{color:var(--a)}
+#mini{position:fixed;bottom:54px;inset-inline:8px;background:var(--s);border-radius:var(--r);padding:8px 10px;z-index:8;display:none;box-shadow:0 4px 20px #0006}
+#mini .c{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}#mini input[type=range]{width:100%;padding:0}
+.msg{color:var(--m);padding:14px;background:var(--s);border-radius:var(--r)}.sp{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+#txt{white-space:pre-wrap;line-height:1.9;padding:10px 4px;unicode-bidi:plaintext}.det{display:flex;gap:14px}.det .cv{width:130px;flex:none}
+.ch{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #ffffff10;cursor:pointer}.ch.on{color:var(--a)}
+</style></head><body>
+<header><b>TETOO BOOKS</b><input id="q" type="search" placeholder="ابحث: كتاب، مؤلف، راوٍ، تصنيف..." enterkeyhint="search"></header>
+<main id="v"></main>
+<div id="mini"><div id="mt"></div><input id="sk" type="range" min="0" max="100" value="0"><div class="c">
+<button onclick="skip(-15)">⏪15</button><button class="p" id="pp" onclick="tgl()">▶</button><button onclick="skip(15)">15⏩</button>
+<button onclick="chap(-1)">⏮</button><button onclick="chap(1)">⏭</button>
+<select id="sd" onchange="spd(this.value)"><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>
+<select id="sl" onchange="sleep(this.value)"><option value="0">💤</option><option>15</option><option>30</option><option>60</option></select><small id="tm"></small></div></div>
+<audio id="au" preload="metadata"></audio>
+<nav><a href="#/" id="n1">الرئيسية</a><a href="#/lib" id="n2">مكتبتي</a><a href="#/imp" id="n3">استيراد</a><a href="#/set" id="n4">الإعدادات</a></nav>
+<script>
+/* ===== Storage layer ===== */
+const D={fav:{},prog:{},bm:{},hist:[],lib:{},set:{lang:'ar',theme:'dark',font:20,speed:1}};
+let S=Object.assign(D,JSON.parse(localStorage.tb||'{}'));const save=()=>localStorage.tb=JSON.stringify(S);
+const idb=new Promise((ok,no)=>{const r=indexedDB.open('tb',1);r.onupgradeneeded=()=>r.result.createObjectStore('f');r.onsuccess=()=>ok(r.result);r.onerror=no});
+const tx=async(m,f)=>{const d=await idb;return new Promise((ok,no)=>{const s=d.transaction('f',m).objectStore('f'),r=f(s);r.onsuccess=()=>ok(r.result);r.onerror=no})};
+const fput=(k,v)=>tx('readwrite',s=>s.put(v,k)),fget=k=>tx('readonly',s=>s.get(k)),fdel=k=>tx('readwrite',s=>s.delete(k)),fkeys=()=>tx('readonly',s=>s.getAllKeys());
+/* ===== Utils ===== */
+const $=s=>document.querySelector(s),ar=()=>S.set.lang==='ar',T=(a,e)=>ar()?a:e;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const B={};const reg=b=>(B[b.id]=b,S.lib[b.id]=b,b);
+const jf=async u=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),25000);try{const r=await fetch(u,{signal:c.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}};
+const fmt=s=>{s=Math.floor(s||0);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+/* ===== Sources (data separated from UI; add a source = add a function returning normalized books) ===== */
+const L1=v=>Array.isArray(v)?v[0]:v,LM={ar:'ara OR arabic',en:'eng OR english',fr:'fre OR fra OR french',de:'ger OR deu OR german',es:'spa OR spanish',it:'ita OR italian'};
+const gut=g=>{const i=g.identifier;return{id:'a'+i,title:L1(g.title)||i,author:[].concat(g.creator||[]).slice(0,2).join(', '),lang:L1(g.language)||'',cover:'https://archive.org/services/img/'+i,subj:[].concat(g.subject||[]).slice(0,4).join(' \u00b7 '),desc:String(L1(g.description)||'').replace(/<[^>]*>/g,'').slice(0,500),text:'https://archive.org/download/'+i+'/'+i+'_djvu.txt',type:'ebook',src:'Internet Archive / Project Gutenberg',lic:T('ملكية عامة (راجع الصفحة الأصلية)','Public domain (see original page)'),url:'https://archive.org/details/'+i}};
+const lv=x=>{const i=x.identifier;return{id:'l'+i,title:L1(x.title)||i,author:[].concat(x.creator||[]).slice(0,2).join(', '),lang:L1(x.language)||'',cover:'https://archive.org/services/img/'+i,desc:String(L1(x.description)||'').replace(/<[^>]*>/g,'').slice(0,500),sections:null,type:'audio',src:'LibriVox / Internet Archive',lic:T('تسجيل ملكية عامة','Public-domain recording'),url:'https://archive.org/details/'+i}};
+async function loadSec(b){const i=b.id.slice(1);try{const m=await jf('https://archive.org/metadata/'+i);let f=(m.files||[]).filter(x=>/\.mp3$/i.test(x.name));const p=f.filter(x=>x.format==='64Kbps MP3');if(p.length)f=p;f.sort((x,y)=>x.name.localeCompare(y.name,'en',{numeric:true}));b.sections=f.map(x=>({t:x.title||x.name.replace(/\.mp3$/i,''),u:'https://archive.org/download/'+i+'/'+encodeURIComponent(x.name)}));b.narr=[].concat(m.metadata?.creator||[]).join(', ');S.lib[b.id]=b}catch{b.sections=[]}}
+const SRC={
+ gut:async p=>{const run=async q=>(await jf('https://archive.org/advancedsearch.php?'+new URLSearchParams({q,rows:20,output:'json','sort[]':'downloads desc'})+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=language&fl[]=subject&fl[]=description')).response.docs.map(gut);
+  let q='mediatype:texts AND collection:gutenberg';if(p.search)q+=` AND (title:(${p.search}) OR creator:(${p.search}) OR subject:(${p.search}))`;if(p.topic)q+=` AND subject:(${p.topic})`;if(p.languages&&!p.search)q+=' AND language:('+p.languages.split(',').map(l=>LM[l]||l).join(' OR ')+')';
+  let r=await run(q);if(!r.length&&p.search)r=await run('mediatype:texts AND collection:gutenberg AND '+p.search);return r},
+ ws:async p=>{const qs=p.search?[p.search]:['ألف ليلة وليلة','كليلة ودمنة','مقدمة ابن خلدون','رسالة الغفران','البخلاء','الأغاني'];const rs=await Promise.allSettled(qs.map(q=>jf('https://ar.wikisource.org/w/api.php?action=query&list=search&srnamespace=0&srlimit='+(p.search?10:3)+'&format=json&origin=*&srsearch='+encodeURIComponent(q))));
+  const seen={};return rs.flatMap(r=>r.value?.query?.search||[]).filter(x=>!seen[x.title]&&(seen[x.title]=1)).map(x=>({id:'w'+encodeURIComponent(x.title),title:x.title,author:'',lang:'ara',desc:x.snippet.replace(/<[^>]*>/g,''),text:'https://ar.wikisource.org/w/api.php?action=parse&format=json&origin=*&prop=text&page='+encodeURIComponent(x.title),wiki:1,type:'ebook',src:T('ويكي مصدر العربية','Arabic Wikisource'),lic:T('راجع صفحة العمل (تراث/ملكية عامة)','See work page (heritage/public domain)'),url:'https://ar.wikisource.org/wiki/'+encodeURIComponent(x.title)}))},
+ lv:async p=>{let q='mediatype:audio AND collection:librivoxaudio';const t=p.title||p.author;if(t)q+=` AND (title:(${t}) OR creator:(${t}))`;return(await jf('https://archive.org/advancedsearch.php?'+new URLSearchParams({q,rows:20,output:'json'})+'&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=language&fl[]=description')).response.docs.map(lv)}};
+const all=async q=>{const r=await Promise.allSettled([SRC.gut({search:q}),SRC.ws({search:q}),SRC.lv({title:q}),SRC.lv({author:q})]);return{ok:r.some(x=>x.status==='fulfilled'),list:r.flatMap(x=>x.value||[]).filter((b,i,a)=>a.findIndex(y=>y.id===b.id)===i)}};
+const SHELVES=[['تراث عربي (ويكي مصدر)','Arabic classics',()=>SRC.ws({})],['كتب عربية','Arabic books',()=>SRC.gut({languages:'ar'})],['روايات وقصص عربية','Arabic novels & stories',()=>SRC.gut({languages:'ar',topic:'fiction'})],['كتب مميزة','Featured',()=>SRC.gut({languages:'en,ar'})],['كتب صوتية','Audiobooks',()=>SRC.lv({})],['روايات وقصص','Novels & stories',()=>SRC.gut({topic:'fiction'})],
+['خيال علمي وفانتازيا','Sci-fi & fantasy',()=>SRC.gut({topic:'science fiction'})],['غموض وتحقيق','Mystery',()=>SRC.gut({topic:'detective'})],['تاريخ وثقافة','History & culture',()=>SRC.gut({topic:'history'})],
+['علوم وتكنولوجيا','Science & tech',()=>SRC.gut({topic:'science'})],['برمجة وتعلم','Programming & learning',()=>SRC.gut({topic:'computers'})],['تطوير الذات','Self-development',()=>SRC.gut({topic:'self-actualization'})],
+['كتب أجنبية','Foreign books',()=>SRC.gut({languages:'fr,de,es,it'})]];
+/* ===== Views ===== */
+const cover=b=>`<div class="cv">${esc(b.title).slice(0,40)}${b.cover?`<img loading=lazy src="${esc(b.cover)}" alt="" onerror="this.remove()">`:''}</div>`;
+const card=b=>(reg(b),`<div class="card" onclick="location.hash='#/book/${b.id}'">${cover(b)}<div class="t">${esc(b.title)}</div><small>${esc(b.author)}</small><span class="tag">${b.type==='audio'?'🎧':'📖'}</span></div>`);
+const view=h=>{$('#v').innerHTML=h;scrollTo(0,0)};
+const setUser=()=>{const v=$('#un').value.trim();if(v){S.user=v;save();home()}};
+function home(){let h=S.user?`<h2>${T('أهلاً','Welcome')} ${esc(S.user)} 👋</h2>`:`<div class="msg"><b>${T('أهلاً بك في TETOO BOOKS','Welcome to TETOO BOOKS')}</b><div class="sp"><input id="un" placeholder="${T('اكتب اسمك','Your name')}"><button class="p" onclick="setUser()">${T('ابدأ','Start')}</button></div><small>${T('حساب على هذا الجهاز فقط. تسجيل الدخول والمزامنة السحابية يحتاجان خادمًا وسيُضافان لاحقًا.','Device-only profile. Cloud login/sync needs a server and comes later.')}</small></div>`;const last=S.hist.map(i=>S.lib[i]).filter(Boolean);
+ if(last.length)h+=`<h2>${T('تابع من حيث توقفت','Continue')}</h2><div class="row">${last.slice(0,10).map(card).join('')}</div>`;
+ h+=SHELVES.map((s,i)=>`<h2>${T(s[0],s[1])}</h2><div class="row" id="sh${i}"><div class="msg">…</div></div>`).join('');view(h);
+ const io=new IntersectionObserver(es=>es.forEach(async e=>{if(!e.isIntersecting)return;io.unobserve(e.target);const i=+e.target.id.slice(2);
+  try{const l=await SHELVES[i][2]();e.target.innerHTML=l.length?l.map(card).join(''):`<div class="msg">${T('لا توجد كتب متاحة','No books available')}</div>`}catch(x){e.target.innerHTML=`<div class="msg">${T('تعذر الاتصال بالمصدر. تحقق من الإنترنت.','Could not reach source. Check your connection.')}<br><small>(${x.name==='AbortError'?'timeout':esc(x.message)})</small></div>`}}),{rootMargin:'200px'});
+ SHELVES.forEach((_,i)=>io.observe($('#sh'+i)))}
+async function search(q){view(`<h2>${T('نتائج','Results')}: ${esc(q)}</h2><div class="sp"><select id="ft" onchange="flt()"><option value="">${T('كل الأنواع','All types')}</option><option value="audio">🎧</option><option value="ebook">📖</option></select><select id="fl" onchange="flt()"><option value="">${T('كل اللغات','All languages')}</option><option>ar</option><option>en</option><option>fr</option></select><select id="so" onchange="flt()"><option value="">${T('الترتيب','Sort')}</option><option value="t">${T('الاسم','Title')}</option></select></div><div id="res" class="msg">…</div>`);
+ const r=await all(q);window.RES=r.list;r.ok?flt():$('#res').textContent=T('تعذر الاتصال بالمصادر.','Could not reach sources.')}
+function flt(){let l=[...window.RES];const t=$('#ft').value,g=$('#fl').value;if(t)l=l.filter(b=>b.type===t);if(g)l=l.filter(b=>(b.lang||'').toLowerCase().startsWith(g)||(b.lang||'').toLowerCase().startsWith({ar:'arab',en:'engl',fr:'fren'}[g]));if($('#so').value)l.sort((a,b)=>a.title.localeCompare(b.title));
+ $('#res').className=l.length?'grid':'msg';$('#res').innerHTML=l.length?l.map(card).join(''):T('لا نتائج. جرّب كلمة أخرى مثل: Dickens أو Sherlock أو Arabic.','No results. Try: Dickens, Sherlock, Poe.')}
+function book(id){const b=B[id]||S.lib[id];if(!b)return view(`<div class="msg">${T('الكتاب غير موجود','Not found')}</div>`);reg(b);if(b.type==='audio'&&b.sections==null&&!b.local){view(`<div class="msg">…</div>`);return loadSec(b).then(()=>book(id))}const f=S.fav[id],dl=b.local||b.text;
+ view(`<div class="det">${cover(b)}<div><h2 style="margin-top:0">${esc(b.title)}</h2><div><a href="#/auth/${encodeURIComponent(b.author)}" style="color:var(--a)">${esc(b.author)}</a></div>${b.narr?`<small>${T('الراوي','Narrator')}: ${esc(b.narr)}</small><br>`:''}<small>${esc(b.lang)} ${b.time?'· '+esc(b.time):''}</small></div></div>
+ <div class="sp">${b.type==='audio'&&b.sections?.length?`<button class="p" onclick="play('${id}')">▶ ${T('استماع','Listen')}</button>`:''}${b.type==='ebook'&&(b.text||b.local)?`<button class="p" onclick="location.hash='#/read/${id}'">📖 ${T('قراءة','Read')}</button>`:''}
+ <button onclick="fav('${id}')">${f?'★':'☆'} ${T('المفضلة','Favorite')}</button>${b.type==='ebook'&&b.text&&!b.local&&!b.wiki?`<button onclick="dl('${id}')">⬇ ${T('تنزيل','Download')}</button>`:''}${b.epub?`<a href="${esc(b.epub)}" target=_blank><button>EPUB</button></a>`:''}</div>
+ ${b.type==='audio'&&b.sections&&!b.sections.length&&!b.local?`<iframe src="https://archive.org/embed/${id.slice(1)}" style="width:100%;height:320px;border:0;border-radius:12px" allowfullscreen></iframe>`:''}
+ <p>${esc(b.desc||b.subj||T('لا يوجد وصف متاح.','No description available.'))}</p><p><small>${T('المصدر','Source')}: ${esc(b.src)} · ${T('الترخيص','License')}: ${esc(b.lic)} ${b.url?`· <a style="color:var(--a)" href="${esc(b.url)}" target=_blank>${T('الصفحة الأصلية','Original page')}</a>`:''}</small></p>
+ ${b.sections?`<h2>${T('الفصول','Chapters')} (${b.sections.length})</h2>`+b.sections.map((s,i)=>`<div class="ch" onclick="play('${id}',${i})">▶ ${esc(s.t)}</div>`).join(''):''}`)}
+const fav=id=>{S.fav[id]?delete S.fav[id]:S.fav[id]=1;save();book(id)};
+async function author(n){view(`<h2>${esc(n)}</h2><div id="res" class="msg">…</div><small>${T('المعروض هو الكتب المتاحة فقط؛ لا نعرض سيرًا غير موثقة.','Only available books are shown; no unverified bios.')}</small>`);const r=await all(n);const l=r.list.filter(b=>b.author.toLowerCase().includes(n.toLowerCase().split(' ').pop()));$('#res').className=l.length?'grid':'msg';$('#res').innerHTML=l.length?l.map(card).join(''):T('لا توجد كتب.','No books.')}
+function lib(){const L=k=>Object.keys(k).map(i=>S.lib[i]).filter(Boolean),prog=L(S.prog);
+ const sec=(t,l)=>l.length?`<h2>${t}</h2><div class="row">${l.map(card).join('')}</div>`:'';
+ view(sec(T('المفضلة','Favorites'),L(S.fav))+sec(T('بدأت قراءته/الاستماع إليه','In progress'),prog.filter(b=>S.prog[b.id].p<.97))+sec(T('المكتملة','Completed'),prog.filter(b=>S.prog[b.id].p>=.97))+sec(T('آخر ما فتحته','Recent'),S.hist.map(i=>S.lib[i]).filter(Boolean))+sec(T('علامات مرجعية','Bookmarks'),L(S.bm))||`<div class="msg">${T('مكتبتك فارغة بعد.','Your library is empty.')}</div>`);
+ view($('#v').innerHTML||`<div class="msg">${T('مكتبتك فارغة بعد.','Your library is empty.')}</div>`);fkeys().then(k=>{if(k.length)$('#v').insertAdjacentHTML('beforeend',`<h2>${T('التنزيلات / ملفاتي','Downloads / my files')}</h2><div class="row">${k.map(i=>S.lib[i]).filter(Boolean).map(card).join('')}</div>`)})}
+/* ===== Reader ===== */
+let cur=null;
+const wt=async b=>{const d=new DOMParser().parseFromString((await(await fetch(b.text)).json()).parse.text['*'],'text/html');d.querySelectorAll('style,script,.mw-editsection,.noprint,table.ambox').forEach(e=>e.remove());return d.body.textContent.replace(/\n{3,}/g,'\n\n').trim()};
+async function read(id){const b=B[id]||S.lib[id];if(!b)return;view(`<div class="msg">…</div>`);let t;const blob=await fget(id);
+ try{t=blob?await blob.text():b.wiki?await wt(b):await(await fetch(b.text)).text()}catch{if(id[0]==='a')return view(`<div class="sp"><a href="#/book/${id}"><button>←</button></a><a href="https://archive.org/details/${id.slice(1)}" target=_blank style="color:var(--a)">${T('فتح في أرشيف الإنترنت','Open on Internet Archive')}</a></div><iframe src="https://archive.org/embed/${id.slice(1)}" style="width:100%;height:78vh;border:0;border-radius:12px" allowfullscreen></iframe>`);return view(`<div class="msg">${T('تعذر فتح النص داخل التطبيق (المصدر لا يسمح بالتحميل من المتصفح). افتحه من الرابط الأصلي أو استورد الملف.','Cannot load text in-app (source blocks browser access). Open the original page or import the file.')}<br><a style="color:var(--a)" href="${esc(b.url||b.text)}" target=_blank>${T('فتح','Open')}</a></div>`)}
+ let n=0;const html=esc(t).replace(/^(chapter|book|part|الفصل|الباب)\b.*$/gim,m=>`<span id="c${n++}" data-n="${m.slice(0,40)}">${m}</span>`);
+ S.hist=[id,...S.hist.filter(x=>x!==id)].slice(0,30);reg(b);save();const st=S.set.font,bg=localStorage.rbg||'';
+ view(`<div class="sp"><button onclick="fz(-2)">A-</button><button onclick="fz(2)">A+</button><select onchange="rbg(this.value)"><option value="">${T('الخلفية','Theme')}</option><option value="#0f1115|#eceef2">${T('ليلي','Night')}</option><option value="#f4ecd8|#3b2f1e">${T('سيبيا','Sepia')}</option><option value="#fff|#111">${T('فاتح','Light')}</option></select><button onclick="bm('${id}')">🔖</button><select id="cs" onchange="document.getElementById(this.value)?.scrollIntoView()"><option>${T('الفصول','Chapters')}</option>${[...Array(Math.min(n,200)).keys()].map(i=>`<option value="c${i}">${i+1}</option>`).join('')}</select><input id="fs" placeholder="${T('بحث','Find')}" style="width:90px" onchange="find(this.value)"><b id="pc"></b></div><div id="txt" style="font-size:${st}px">${html}</div>`);rbg(bg,1);
+ const p=S.prog[id];if(p)setTimeout(()=>scrollTo(0,p.p*(document.body.scrollHeight-innerHeight)),50);cur=id;
+ onscroll=()=>{if(cur!==id)return;const p=scrollY/Math.max(1,document.body.scrollHeight-innerHeight);$('#pc')&&($('#pc').textContent=Math.round(p*100)+'%');S.prog[id]={p,t:Date.now()};save()}}
+const fz=d=>{S.set.font=Math.max(12,Math.min(44,S.set.font+d));save();$('#txt').style.fontSize=S.set.font+'px'};
+const rbg=(v,q)=>{if(!v)return;localStorage.rbg=v;const[a,c]=v.split('|');$('#txt').style.cssText+=`;background:${a};color:${c};padding:14px;border-radius:12px`};
+const find=q=>q&&window.find(q);
+const bm=id=>{const p=scrollY/Math.max(1,document.body.scrollHeight-innerHeight);(S.bm[id]=S.bm[id]||[]).push(p);S.bm[id]=[...new Set(S.bm[id])];save();alert(T('تمت إضافة علامة','Bookmark added')+' ('+Math.round(p*100)+'%)')};
+async function dl(id){const b=B[id];try{const t=await(await fetch(b.text)).blob();await fput(id,t);S.lib[id].local=1;save();alert(T('تم التنزيل','Downloaded'));book(id)}catch{alert(T('هذا المصدر لا يسمح بالتنزيل من التطبيق. استخدم الرابط الأصلي.','Source blocks in-app download. Use the original link.'))}}
+/* ===== Audio player ===== */
+const au=$('#au');let pb=null,pi=0,sleepT=null,lastSave=0;
+async function play(id,i,t){const b=B[id]||S.lib[id];if(!b)return;const p=S.prog[id];pb=reg(b);pi=i??(p?.i||0);let src=b.sections[pi]?.u;
+ if(b.local){const bl=await fget(id);src=URL.createObjectURL(bl)}
+ au.src=src;au.playbackRate=S.set.speed;$('#sd').value=S.set.speed;au.onloadedmetadata=()=>{const s=t??(i==null&&p?.i===pi?p.t:0);if(s)au.currentTime=s};
+ au.play().catch(()=>err());S.hist=[id,...S.hist.filter(x=>x!==id)].slice(0,30);save();$('#mini').style.display='block';ui();
+ if('mediaSession'in navigator)navigator.mediaSession.metadata=new MediaMetadata({title:b.sections[pi]?.t||b.title,artist:b.author,album:b.title,artwork:b.cover?[{src:b.cover}]:[]})}
+const err=()=>$('#mt').innerHTML=`<span style="color:#e66">${T('تعذر تشغيل الملف الصوتي (قد يكون المصدر غير متاح أو لا يوجد إنترنت).','Cannot play this audio (source unavailable or offline).')}</span>`;
+au.onerror=err;const ui=()=>{if(pb)$('#mt').innerHTML=`<b>${esc(pb.title)}</b> <small>${esc(pb.author)} · ${esc(pb.sections[pi]?.t||'')}</small>`};
+const tgl=()=>au.paused?au.play():au.pause(),skip=d=>au.currentTime+=d,spd=v=>{au.playbackRate=S.set.speed=+v;save()};
+const chap=d=>{const n=pi+d;if(pb&&pb.sections[n])play(pb.id,n,0)};
+au.onplay=()=>$('#pp').textContent='⏸';au.onpause=()=>$('#pp').textContent='▶';au.onended=()=>pb&&pb.sections[pi+1]?chap(1):pb&&(S.prog[pb.id]={i:pi,t:0,p:1},save());
+au.ontimeupdate=()=>{$('#sk').value=au.duration?au.currentTime/au.duration*100:0;$('#tm').textContent=fmt(au.currentTime)+'/'+fmt(au.duration);
+ if(pb&&Date.now()-lastSave>4000){lastSave=Date.now();S.prog[pb.id]={i:pi,t:au.currentTime,p:(pi+au.currentTime/(au.duration||1))/pb.sections.length};save()}};
+$('#sk').oninput=e=>au.currentTime=e.target.value/100*au.duration;
+const sleep=m=>{clearTimeout(sleepT);if(+m)sleepT=setTimeout(()=>au.pause(),m*60000)};
+if('mediaSession'in navigator){const m=navigator.mediaSession;m.setActionHandler('play',()=>au.play());m.setActionHandler('pause',()=>au.pause());m.setActionHandler('seekbackward',()=>skip(-15));m.setActionHandler('seekforward',()=>skip(15));m.setActionHandler('previoustrack',()=>chap(-1));m.setActionHandler('nexttrack',()=>chap(1))}
+/* ===== Import ===== */
+function imp(){view(`<h2>${T('استيراد ملفاتك','Import your files')}</h2><p class="msg">${T('الملفات تبقى على جهازك فقط ولا تُرفع إلى أي خادم. المدعوم: TXT (قراءة)، MP3/M4A/OGG (استماع)، PDF (عرض). EPUB يُحفظ لكنه غير مدعوم داخل القارئ في هذه النسخة.','Files stay on your device. Supported: TXT (read), MP3/M4A/OGG (listen), PDF (view). EPUB is stored but not rendered in this version.')}</p><input type="file" id="fi" accept=".txt,.pdf,.epub,audio/*" multiple onchange="doImp(this.files)">`)}
+async function doImp(fs){for(const f of fs){const id='u'+Date.now()+Math.random().toString(36).slice(2,5),e=f.name.split('.').pop().toLowerCase(),a=f.type.startsWith('audio');
+ await fput(id,f);reg({id,title:f.name.replace(/\.[^.]+$/,''),author:T('ملف شخصي','My file'),lang:'',type:a?'audio':'ebook',local:1,sections:a?[{t:f.name}]:undefined,text:e==='txt'?'local':undefined,kind:e,src:T('جهازك','Your device'),lic:T('ملفك الشخصي','Your own file')})}save();lib()}
+const openLocal=async id=>{const b=S.lib[id];const u=URL.createObjectURL(await fget(id));b.kind==='pdf'?view(`<iframe src="${u}" style="width:100%;height:80vh;border:0"></iframe>`):open(u)};
+/* ===== Settings ===== */
+async function sets(){const e=navigator.storage?.estimate?await navigator.storage.estimate():{};view(`<h2>${T('الإعدادات','Settings')}</h2><div class="sp"><label>${T('اللغة','Language')}</label><select onchange="cfg('lang',this.value)"><option value="ar" ${ar()?'selected':''}>العربية</option><option value="en" ${ar()?'':'selected'}>English</option></select>
+<label>${T('المظهر','Theme')}</label><select onchange="cfg('theme',this.value)"><option value="dark">${T('داكن','Dark')}</option><option value="light" ${S.set.theme=='light'?'selected':''}>${T('فاتح','Light')}</option></select></div>
+<div class="sp"><label>${T('حجم الخط','Font')}</label><input type="number" min=12 max=44 value="${S.set.font}" onchange="cfg('font',+this.value)"><label>${T('سرعة الاستماع','Speed')}</label><input type="number" step=.25 min=.5 max=3 value="${S.set.speed}" onchange="cfg('speed',+this.value)"></div>
+<p>${T('المساحة المستخدمة','Storage used')}: ${((e.usage||0)/1048576).toFixed(1)} MB</p><div class="sp"><button onclick="clr()">${T('مسح سجل القراءة والاستماع','Clear history')}</button><button onclick="wipe()">${T('حذف كل الملفات المنزّلة','Delete all downloads')}</button></div>
+<h2>${T('عن التطبيق','About')}</h2><p><b>TETOO BOOKS</b><br>${T('مكتبتك الشخصية للكتب الصوتية والإلكترونية.','Your personal library of audio & e-books.')}<br>Developed by TETOO</p>
+<p><small>${T('الخصوصية: كل بياناتك (المفضلة، التقدم، الملفات) محفوظة على جهازك فقط. نتصل فقط بـ Project Gutenberg (Gutendex) وLibriVox للبحث وجلب الكتب العامة، ولا نرسل لهما أي بيانات شخصية.','Privacy: all your data stays on your device. We only contact Gutendex/Project Gutenberg and LibriVox for public-domain catalogs; no personal data is sent.')}</small></p>`)}
+const cfg=(k,v)=>{S.set[k]=v;save();apply();sets()},apply=()=>{document.documentElement.dir=ar()?'rtl':'ltr';document.documentElement.lang=S.set.lang;document.documentElement.dataset.theme=S.set.theme;$('#q').placeholder=T('ابحث: كتاب، مؤلف، راوٍ، تصنيف...','Search books, authors, narrators...');[T('الرئيسية','Home'),T('مكتبتي','Library'),T('استيراد','Import'),T('الإعدادات','Settings')].forEach((t,i)=>$('#n'+(i+1)).textContent=t)};
+const clr=()=>{S.hist=[];S.prog={};save();sets()},wipe=async()=>{for(const k of await fkeys()){await fdel(k);if(S.lib[k])delete S.lib[k].local}save();sets()};
+/* ===== Router ===== */
+function route(){const[,r,a]=(location.hash||'#/').split('/');onscroll=null;cur=null;document.querySelectorAll('nav a').forEach(x=>x.classList.toggle('on',x.getAttribute('href')==='#/'+(r||'')));
+ ({'':home,book:()=>{const b=S.lib[a];b?.local&&b.text==='local'?(reg(b),book(a)):book(a)},read:()=>read(a),auth:()=>author(decodeURIComponent(a||'')),lib,imp,set:sets,s:()=>search(decodeURIComponent(a||''))}[r||'']||home)()}
+$('#q').onkeydown=e=>e.key==='Enter'&&e.target.value.trim()&&(location.hash='#/s/'+encodeURIComponent(e.target.value.trim()));
+addEventListener('hashchange',route);apply();route();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
