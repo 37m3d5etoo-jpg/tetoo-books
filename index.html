@@ -62,7 +62,8 @@ const SHELVES=[['تراث عربي (ويكي مصدر)','Arabic classics',()=>SR
 ['علوم وتكنولوجيا','Science & tech',()=>SRC.gut({topic:'science'})],['برمجة وتعلم','Programming & learning',()=>SRC.gut({topic:'computers'})],['تطوير الذات','Self-development',()=>SRC.gut({topic:'(self-help OR success OR conduct OR psychology)'})],
 ['كتب أجنبية','Foreign books',()=>SRC.gut({languages:'fr,de,es,it'})]];
 /* ===== Views ===== */
-const cover=b=>`<div class="cv">${esc(b.title).slice(0,40)}${b.cover?`<img loading=lazy src="${esc(b.cover)}" alt="" onerror="this.remove()">`:''}</div>`;
+const hue=t=>[...String(t)].reduce((a,c)=>(a*31+c.charCodeAt(0))%360,7);
+const cover=b=>`<div class="cv" style="background:linear-gradient(135deg,hsl(${hue(b.title)} 45% 32%),hsl(${(hue(b.title)+50)%360} 50% 17%))">${esc(b.title).slice(0,40)}${b.cover?`<img loading=lazy src="${esc(b.cover)}" alt="" onerror="this.remove()">`:''}</div>`;
 const card=b=>(reg(b),`<div class="card" onclick="location.hash='#/book/${b.id}'">${cover(b)}<div class="t">${esc(b.title)}</div><small>${esc(b.author)}</small><span class="tag">${b.type==='audio'?'🎧':'📖'}</span></div>`);
 const view=h=>{$('#v').innerHTML=h;scrollTo(0,0)};
 const setUser=()=>{const v=$('#un').value.trim();if(v){S.user=v;save();home()}};
@@ -99,7 +100,7 @@ async function read(id){const b=B[id]||S.lib[id];if(!b)return;view(`<div class="
  try{t=blob?await blob.text():b.wiki?await wt(b):await(await fetch(b.text)).text()}catch{if(id[0]==='a')return view(`<div class="sp"><a href="#/book/${id}"><button>←</button></a><a href="https://archive.org/details/${id.slice(1)}" target=_blank style="color:var(--a)">${T('فتح في أرشيف الإنترنت','Open on Internet Archive')}</a></div><iframe src="https://archive.org/embed/${id.slice(1)}" style="width:100%;height:78vh;border:0;border-radius:12px" allowfullscreen></iframe>`);return view(`<div class="msg">${T('تعذر فتح النص داخل التطبيق (المصدر لا يسمح بالتحميل من المتصفح). افتحه من الرابط الأصلي أو استورد الملف.','Cannot load text in-app (source blocks browser access). Open the original page or import the file.')}<br><a style="color:var(--a)" href="${esc(b.url||b.text)}" target=_blank>${T('فتح','Open')}</a></div>`)}
  let n=0;const html=esc(t).replace(/^(chapter|book|part|الفصل|الباب)\b.*$/gim,m=>`<span id="c${n++}" data-n="${m.slice(0,40)}">${m}</span>`);
  S.hist=[id,...S.hist.filter(x=>x!==id)].slice(0,30);reg(b);save();const st=S.set.font,bg=localStorage.rbg||'';
- view(`<div class="sp"><button onclick="fz(-2)">A-</button><button onclick="fz(2)">A+</button><select onchange="rbg(this.value)"><option value="">${T('الخلفية','Theme')}</option><option value="#0f1115|#eceef2">${T('ليلي','Night')}</option><option value="#f4ecd8|#3b2f1e">${T('سيبيا','Sepia')}</option><option value="#fff|#111">${T('فاتح','Light')}</option></select><button onclick="bm('${id}')">🔖</button><select id="cs" onchange="document.getElementById(this.value)?.scrollIntoView()"><option>${T('الفصول','Chapters')}</option>${[...Array(Math.min(n,200)).keys()].map(i=>`<option value="c${i}">${i+1}</option>`).join('')}</select><input id="fs" placeholder="${T('بحث','Find')}" style="width:90px" onchange="find(this.value)"><b id="pc"></b></div>${chs(b)}<div id="txt" style="font-size:${st}px">${html}</div>`);rbg(bg,1);
+ view(`<div class="sp"><button onclick="fz(-2)">A-</button><button onclick="fz(2)">A+</button><select onchange="rbg(this.value)"><option value="">${T('الخلفية','Theme')}</option><option value="#0f1115|#eceef2">${T('ليلي','Night')}</option><option value="#f4ecd8|#3b2f1e">${T('سيبيا','Sepia')}</option><option value="#fff|#111">${T('فاتح','Light')}</option></select><button id="tb" onclick="tts('x')">🔊</button><button onclick="tts('stop')">⏹</button><button onclick="bm('${id}')">🔖</button><select id="cs" onchange="document.getElementById(this.value)?.scrollIntoView()"><option>${T('الفصول','Chapters')}</option>${[...Array(Math.min(n,200)).keys()].map(i=>`<option value="c${i}">${i+1}</option>`).join('')}</select><input id="fs" placeholder="${T('بحث','Find')}" style="width:90px" onchange="find(this.value)"><b id="pc"></b></div>${chs(b)}<div id="txt" style="font-size:${st}px">${html}</div>`);rbg(bg,1);
  const p=S.prog[id];if(p)setTimeout(()=>scrollTo(0,p.p*(document.body.scrollHeight-innerHeight)),50);cur=id;
  onscroll=()=>{if(cur!==id)return;const p=scrollY/Math.max(1,document.body.scrollHeight-innerHeight);$('#pc')&&($('#pc').textContent=Math.round(p*100)+'%');S.prog[id]={p,t:Date.now()};save()}}
 const fz=d=>{S.set.font=Math.max(12,Math.min(44,S.set.font+d));save();$('#txt').style.fontSize=S.set.font+'px'};
@@ -124,6 +125,17 @@ au.ontimeupdate=()=>{$('#sk').value=au.duration?au.currentTime/au.duration*100:0
 $('#sk').oninput=e=>au.currentTime=e.target.value/100*au.duration;
 const sleep=m=>{clearTimeout(sleepT);if(+m)sleepT=setTimeout(()=>au.pause(),m*60000)};
 if('mediaSession'in navigator){const m=navigator.mediaSession;m.setActionHandler('play',()=>au.play());m.setActionHandler('pause',()=>au.pause());m.setActionHandler('seekbackward',()=>skip(-15));m.setActionHandler('seekforward',()=>skip(15));m.setActionHandler('previoustrack',()=>chap(-1));m.setActionHandler('nexttrack',()=>chap(1))}
+
+/* ===== Read aloud (device TTS) ===== */
+let tq=[],ti=0,tp=false;
+const tbtn=v=>{const e=$('#tb');if(e)e.textContent=v};
+function say(){if(ti>=tq.length){tq=[];tbtn('\ud83d\udd0a');return}const u=new SpeechSynthesisUtterance(tq[ti]);u.lang=/[\u0600-\u06FF]/.test(tq[ti])?'ar-SA':'en-US';u.rate=S.set.speed;
+ u.onend=()=>{if(!tp){ti++;say()}};u.onerror=e=>{if(e.error!=='canceled'&&e.error!=='interrupted'){tq=[];tbtn('\ud83d\udd0a');alert(T('الجهاز لا يدعم صوتًا لهذه اللغة. ثبّت صوتًا من إعدادات الجهاز ← اللغة ← تحويل النص إلى كلام.','No voice for this language. Install one in device Text-to-speech settings.'))}};speechSynthesis.speak(u);tbtn('\u23f8')}
+function tts(a){if(!window.speechSynthesis){if(a!=='stop')alert(T('المتصفح لا يدعم القراءة الصوتية','Read-aloud not supported'));return}
+ if(a==='stop'){tq=[];tp=false;speechSynthesis.cancel();tbtn('\ud83d\udd0a');return}
+ if(tq.length&&!tp){tp=true;speechSynthesis.cancel();tbtn('\u25b6');return}
+ if(tp){tp=false;say();return}
+ const t=$('#txt').textContent,st=Math.floor(t.length*(scrollY/Math.max(1,document.body.scrollHeight-innerHeight)));tq=t.slice(st).match(/[^.!?\u061f\n]{1,200}[.!?\u061f\n]?/g)||[];ti=0;say()}
 /* ===== Import ===== */
 function imp(){view(`<h2>${T('استيراد ملفاتك','Import your files')}</h2><p class="msg">${T('الملفات تبقى على جهازك فقط ولا تُرفع إلى أي خادم. المدعوم: TXT (قراءة)، MP3/M4A/OGG (استماع)، PDF (عرض). EPUB يُحفظ لكنه غير مدعوم داخل القارئ في هذه النسخة.','Files stay on your device. Supported: TXT (read), MP3/M4A/OGG (listen), PDF (view). EPUB is stored but not rendered in this version.')}</p><input type="file" id="fi" accept=".txt,.pdf,.epub,audio/*" multiple onchange="doImp(this.files)">`)}
 async function doImp(fs){for(const f of fs){const id='u'+Date.now()+Math.random().toString(36).slice(2,5),e=f.name.split('.').pop().toLowerCase(),a=f.type.startsWith('audio');
@@ -139,7 +151,7 @@ async function sets(){const e=navigator.storage?.estimate?await navigator.storag
 const cfg=(k,v)=>{S.set[k]=v;save();apply();sets()},apply=()=>{document.documentElement.dir=ar()?'rtl':'ltr';document.documentElement.lang=S.set.lang;document.documentElement.dataset.theme=S.set.theme;$('#q').placeholder=T('ابحث: كتاب، مؤلف، راوٍ، تصنيف...','Search books, authors, narrators...');[T('الرئيسية','Home'),T('مكتبتي','Library'),T('استيراد','Import'),T('الإعدادات','Settings')].forEach((t,i)=>$('#n'+(i+1)).textContent=t)};
 const clr=()=>{S.hist=[];S.prog={};save();sets()},wipe=async()=>{for(const k of await fkeys()){await fdel(k);if(S.lib[k])delete S.lib[k].local}save();sets()};
 /* ===== Router ===== */
-function route(){const[,r,a]=(location.hash||'#/').split('/');onscroll=null;cur=null;document.querySelectorAll('nav a').forEach(x=>x.classList.toggle('on',x.getAttribute('href')==='#/'+(r||'')));
+function route(){tts('stop');const[,r,a]=(location.hash||'#/').split('/');onscroll=null;cur=null;document.querySelectorAll('nav a').forEach(x=>x.classList.toggle('on',x.getAttribute('href')==='#/'+(r||'')));
  ({'':home,book:()=>{const b=S.lib[a];b?.local&&b.text==='local'?(reg(b),book(a)):book(a)},read:()=>read(a),auth:()=>author(decodeURIComponent(a||'')),lib,imp,set:sets,s:()=>search(decodeURIComponent(a||''))}[r||'']||home)()}
 $('#q').onkeydown=e=>e.key==='Enter'&&e.target.value.trim()&&(location.hash='#/s/'+encodeURIComponent(e.target.value.trim()));
 addEventListener('hashchange',route);apply();route();
